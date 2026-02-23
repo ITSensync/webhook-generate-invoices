@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get("/", (req, res) => {
   res.json({
-    message: "API - SENSYNC MAINTENANCE API",
+    message: "API - WEBHOOK INVOICES",
   });
 });
 
