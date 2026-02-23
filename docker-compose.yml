@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: maintenance-api
+    ports:
+      - "3005:3005"
+    restart: always
