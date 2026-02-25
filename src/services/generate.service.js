@@ -1,6 +1,5 @@
 /* eslint-disable no-unused-vars */
-/* eslint-disable no-console */
-/* eslint-disable node/prefer-global/buffer */
+
 // import ExcelJS from "exceljs";
 import fs from "node:fs";
 import Docxtemplater from "docxtemplater";
@@ -42,59 +41,102 @@ async function generateInvoices(body) {
 
     const isDlh = customer.includes("DLH");
 
-    const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
-
-    const zip = new PizZip(content);
-    const doc = new Docxtemplater(zip, {
-      // modules: [imageModule],
-      paragraphLoop: true,
-      linebreaks: true,
-    });
-
-    const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-    const name = invoice.name;
-    const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
-    const quantity = invoice.product_lines[0].quantity;
-    const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
-    const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
-    const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
-    const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
-    const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
-    const tax_pph = formatRupiahNumber(getTaxPrice(isDlh ? "PPh 22" : "PPh 23", invoice.tax_lines));
-
-    doc.render({
-      number: invoiceInfo.nomor,
-      name,
-      invoice_date,
-      product: invoiceInfo.product,
-      quantity,
-      amount_untaxed,
-      price_unit,
-      price_subtotal,
-      price_total,
-      tax_12,
-      tax_pph,
-      pph_type: isDlh ? "22" : "23",
-    });
-
-    const buf = doc.toBuffer();
-
-    // fs.writeFileSync(`./tmp/invoices_${customer}.docx`, buf);
-
-    const pdfBuf = await new Promise((resolve, reject) => {
-      libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
-        if (err)
-          reject(err);
-        else resolve(done);
+    if (isDlh) {
+      const content = fs.readFileSync("./templates/template_gov.docx", "binary");
+      const zip = new PizZip(content);
+      const doc = new Docxtemplater(zip, {
+        // modules: [imageModule],
+        paragraphLoop: true,
+        linebreaks: true,
       });
-    });
 
-    const filename = `invoices_${customer}_${invoice_date}.pdf`;
-    await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
+      const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      const name = invoice.name;
+      const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
+      const quantity = invoice.product_lines[0].quantity;
+      const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
+      const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
+      const terbilang = terbilangRupiah(price_total);
+
+      doc.render({
+        number: invoiceInfo.nomor,
+        name,
+        invoice_date,
+        product: invoiceInfo.product,
+        quantity,
+        price_unit,
+        price_total,
+        terbilang,
+      });
+
+      const buf = doc.toBuffer();
+
+      const pdfBuf = await new Promise((resolve, reject) => {
+        libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
+          if (err)
+            reject(err);
+          else resolve(done);
+        });
+      });
+
+      const filename = `invoices_${customer}_${invoice_date}.pdf`;
+      await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
+    }
+    else {
+      const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
+      const zip = new PizZip(content);
+      const doc = new Docxtemplater(zip, {
+        // modules: [imageModule],
+        paragraphLoop: true,
+        linebreaks: true,
+      });
+
+      const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      const name = invoice.name;
+      const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
+      const quantity = invoice.product_lines[0].quantity;
+      const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
+      const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
+      const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
+      const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
+      const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
+      const tax_pph = formatRupiahNumber(getTaxPrice("PPh 23", invoice.tax_lines));
+
+      doc.render({
+        number: invoiceInfo.nomor,
+        name,
+        invoice_date,
+        product: invoiceInfo.product,
+        quantity,
+        amount_untaxed,
+        price_unit,
+        price_subtotal,
+        price_total,
+        tax_12,
+        tax_pph,
+      });
+
+      const buf = doc.toBuffer();
+
+      const pdfBuf = await new Promise((resolve, reject) => {
+        libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
+          if (err)
+            reject(err);
+          else resolve(done);
+        });
+      });
+
+      const filename = `invoices_${customer}_${invoice_date}.pdf`;
+      await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
+    }
   }
   catch (error) {
     console.error(error);
@@ -180,6 +222,82 @@ function formatRupiahNumber(value) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function terbilang(n) {
+  const angka = [
+    "",
+    "satu",
+    "dua",
+    "tiga",
+    "empat",
+    "lima",
+    "enam",
+    "tujuh",
+    "delapan",
+    "sembilan",
+    "sepuluh",
+    "sebelas",
+  ];
+
+  n = Math.floor(n);
+
+  if (n < 12) {
+    return angka[n];
+  }
+  else if (n < 20) {
+    return `${terbilang(n - 10)} belas`;
+  }
+  else if (n < 100) {
+    return (
+      `${terbilang(Math.floor(n / 10))
+      } puluh ${terbilang(n % 10)}`
+    );
+  }
+  else if (n < 200) {
+    return `seratus ${terbilang(n - 100)}`;
+  }
+  else if (n < 1000) {
+    return (
+      `${terbilang(Math.floor(n / 100))
+      } ratus ${terbilang(n % 100)}`
+    );
+  }
+  else if (n < 2000) {
+    return `seribu ${terbilang(n - 1000)}`;
+  }
+  else if (n < 1000000) {
+    return (
+      `${terbilang(Math.floor(n / 1000))
+      } ribu ${terbilang(n % 1000)}`
+    );
+  }
+  else if (n < 1000000000) {
+    return (
+      `${terbilang(Math.floor(n / 1000000))
+      } juta ${terbilang(n % 1000000)}`
+    );
+  }
+  else if (n < 1000000000000) {
+    return (
+      `${terbilang(Math.floor(n / 1000000000))
+      } miliar ${terbilang(n % 1000000000)}`
+    );
+  }
+  else {
+    return (
+      `${terbilang(Math.floor(n / 1000000000000))
+      } triliun ${terbilang(n % 1000000000000)}`
+    );
+  }
+}
+
+function terbilangRupiah(n) {
+  return (
+    `${terbilang(n)
+      .replace(/\s+/g, " ")
+      .trim()} rupiah`
+  );
 }
 
 async function previewFile(filename) {
