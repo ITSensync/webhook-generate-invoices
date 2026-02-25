@@ -10,9 +10,38 @@ import odooService from "./odoo.service.js";
 
 async function generateInvoices(body) {
   try {
-    const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
-
     const invoice = await odooService.getInvoiceWithLines(body.id);
+    console.log(invoice);
+
+    let customer = invoice.partner_id[1];
+
+    switch (customer) {
+      case "Pak Eko (Spinning)":
+        customer = "Indorama Spinning";
+        break;
+      case "Ibu Metha (Bcp)":
+        customer = "BCP";
+        break;
+      case "Ibu Maya (Sinar Pangjaya)":
+        customer = "Sinar Pangjaya";
+        break;
+      case "Ibu Eliza (Daliatex)":
+        customer = "Daliatex";
+        break;
+      case "Ibu Hera (Indorama Polyester)":
+        customer = "Indorama Polyester";
+        break;
+      case "Ibu Mayang (gistex)":
+        customer = "Gistex";
+        break;
+      case "Pak Gumilar DLH KOta BAndung":
+        customer = "DLH Kota Bandung";
+        break;
+      default:
+        break;
+    }
+
+    const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
 
     const zip = new PizZip(content);
     const doc = new Docxtemplater(zip, {
@@ -61,34 +90,6 @@ async function generateInvoices(body) {
         else resolve(done);
       });
     });
-
-    let customer = invoice.partner_id[1];
-
-    switch (customer) {
-      case "Pak Eko (Spinning)":
-        customer = "Indorama Spinning";
-        break;
-      case "Ibu Metha (Bcp)":
-        customer = "BCP";
-        break;
-      case "Ibu Maya (Sinar Pangjaya)":
-        customer = "Sinar Pangjaya";
-        break;
-      case "Ibu Eliza (Daliatex)":
-        customer = "Daliatex";
-        break;
-      case "Ibu Hera (Indorama Polyester)":
-        customer = "Indorama Polyester";
-        break;
-      case "Ibu Mayang (gistex)":
-        customer = "Gistex";
-        break;
-      case "Pak Gumilar DLH KOta BAndung":
-        customer = "DLH Kota Bandung";
-        break;
-      default:
-        break;
-    }
 
     const filename = `invoices_${customer}_${invoice_date}.pdf`;
     await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
