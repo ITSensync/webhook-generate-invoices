@@ -136,6 +136,103 @@ async function uploadBuffer(buffer, filename, folderId) {
   };
 }
 
+async function getById(model, ids = [], fields = []) {
+  if (!ids.length) {
+    return [];
+  }
+
+  return await callKw(
+    model,
+    "read",
+    [ids],
+    { fields },
+  );
+}
+
+async function searchRead(model, domain = [], fields = [], limit = 0) {
+  return await callKw(
+    model,
+    "search_read",
+    [domain],
+    { fields, limit },
+  );
+}
+
+/**
+ * Ambil invoice lengkap + detail invoice_line_ids
+ */
+async function getInvoiceWithLines(moveId) {
+  await odooLogin();
+  // 1️⃣ Ambil invoice utama
+  const [invoice] = await getById(
+    "account.move",
+    [moveId],
+    [
+      "id",
+      "name",
+      "invoice_date",
+      "invoice_date_due",
+      "partner_id",
+      "amount_untaxed",
+      "amount_tax",
+      "amount_total",
+      "invoice_line_ids",
+      "line_ids",
+      "currency_id",
+      "state",
+    ],
+  );
+
+  if (!invoice) {
+    return null;
+  }
+
+  // 2️⃣ Ambil detail product lines
+  let productLines = [];
+  if (invoice.invoice_line_ids?.length) {
+    productLines = await getById(
+      "account.move.line",
+      invoice.invoice_line_ids,
+      [
+        "id",
+        "name",
+        "product_id",
+        "quantity",
+        "price_unit",
+        "tax_ids",
+        "price_subtotal",
+        "price_total",
+      ],
+    );
+  }
+
+  // 3️⃣ Ambil tax lines (dari journal entries)
+  let taxLines = [];
+  if (invoice.line_ids?.length) {
+    const allLines = await getById(
+      "account.move.line",
+      invoice.line_ids,
+      [
+        "id",
+        "name",
+        "tax_line_id",
+        "debit",
+        "credit",
+        "account_id",
+      ],
+    );
+
+    // filter hanya baris pajak
+    taxLines = allLines.filter(l => l.tax_line_id);
+  }
+
+  return {
+    ...invoice,
+    product_lines: productLines,
+    tax_lines: taxLines,
+  };
+}
+
 async function mainProcess(buffer, folderPath = [], fileName) {
   await odooLogin();
 
@@ -157,4 +254,6 @@ export default {
   odooLogin,
   searchFolder,
   mainProcess,
+  searchRead,
+  getInvoiceWithLines,
 };
