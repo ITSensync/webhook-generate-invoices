@@ -9,60 +9,65 @@ import PizZip from "pizzip";
 import odooService from "./odoo.service.js";
 
 async function generateInvoices(body) {
-  const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
+  try {
+    const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
 
-  const invoice = await odooService.getInvoiceWithLines(body.id);
+    const invoice = await odooService.getInvoiceWithLines(body.id);
 
-  const zip = new PizZip(content);
-  const doc = new Docxtemplater(zip, {
-    // modules: [imageModule],
-    paragraphLoop: true,
-    linebreaks: true,
-  });
-
-  const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const name = invoice.name;
-  const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name);
-  const quantity = invoice.product_lines[0].quantity;
-  const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
-  const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
-  const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
-  const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
-  const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
-  const tax_pph = formatRupiahNumber(getTaxPrice("PPh 23", invoice.tax_lines));
-
-  doc.render({
-    number: invoiceInfo.nomor,
-    name,
-    invoice_date,
-    invoice_periode: invoiceInfo.periode,
-    quantity,
-    amount_untaxed,
-    price_unit,
-    price_subtotal,
-    price_total,
-    tax_12,
-    tax_pph,
-  });
-
-  const buf = doc.toBuffer();
-
-  // fs.writeFileSync(`./tmp/invoices_${invoice.partner_id[1]}_${invoice_date}.docx`, buf);
-
-  const pdfBuf = await new Promise((resolve, reject) => {
-    libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
-      if (err)
-        reject(err);
-      else resolve(done);
+    const zip = new PizZip(content);
+    const doc = new Docxtemplater(zip, {
+      // modules: [imageModule],
+      paragraphLoop: true,
+      linebreaks: true,
     });
-  });
 
-  const filename = `invoices_${invoice.partner_id[1]}_${invoice_date}.pdf`;
-  await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
+    const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const name = invoice.name;
+    const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name);
+    const quantity = invoice.product_lines[0].quantity;
+    const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
+    const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
+    const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
+    const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
+    const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
+    const tax_pph = formatRupiahNumber(getTaxPrice("PPh 23", invoice.tax_lines));
+
+    doc.render({
+      number: invoiceInfo.nomor,
+      name,
+      invoice_date,
+      invoice_periode: invoiceInfo.periode,
+      quantity,
+      amount_untaxed,
+      price_unit,
+      price_subtotal,
+      price_total,
+      tax_12,
+      tax_pph,
+    });
+
+    const buf = doc.toBuffer();
+
+    // fs.writeFileSync(`./tmp/invoices_${invoice.partner_id[1]}_${invoice_date}.docx`, buf);
+
+    const pdfBuf = await new Promise((resolve, reject) => {
+      libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
+        if (err)
+          reject(err);
+        else resolve(done);
+      });
+    });
+
+    const filename = `invoices_${invoice.partner_id[1]}_${invoice_date}.pdf`;
+    await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
+  }
+  catch (error) {
+    console.error(error);
+  }
 
   // return `./tmp/invoices_${name}.docx`;
 }
