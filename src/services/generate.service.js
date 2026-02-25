@@ -11,7 +11,6 @@ import odooService from "./odoo.service.js";
 async function generateInvoices(body) {
   try {
     const invoice = await odooService.getInvoiceWithLines(body.id);
-    console.log(invoice);
 
     let customer = invoice.partner_id[1];
 
@@ -41,6 +40,8 @@ async function generateInvoices(body) {
         break;
     }
 
+    const isDlh = customer.includes("DLH");
+
     const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
 
     const zip = new PizZip(content);
@@ -56,20 +57,20 @@ async function generateInvoices(body) {
       year: "numeric",
     });
     const name = invoice.name;
-    const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name);
+    const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
     const quantity = invoice.product_lines[0].quantity;
     const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
     const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
     const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
     const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
     const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
-    const tax_pph = formatRupiahNumber(getTaxPrice("PPh 23", invoice.tax_lines));
+    const tax_pph = formatRupiahNumber(getTaxPrice(isDlh ? "PPh 22" : "PPh 23", invoice.tax_lines));
 
     doc.render({
       number: invoiceInfo.nomor,
       name,
       invoice_date,
-      invoice_periode: invoiceInfo.periode,
+      product: invoiceInfo.product,
       quantity,
       amount_untaxed,
       price_unit,
@@ -77,11 +78,12 @@ async function generateInvoices(body) {
       price_total,
       tax_12,
       tax_pph,
+      pph_type: isDlh ? "22" : "23",
     });
 
     const buf = doc.toBuffer();
 
-    // fs.writeFileSync(`./tmp/invoices_${invoice.partner_id[1]}_${invoice_date}.docx`, buf);
+    // fs.writeFileSync(`./tmp/invoices_${customer}.docx`, buf);
 
     const pdfBuf = await new Promise((resolve, reject) => {
       libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
@@ -101,22 +103,35 @@ async function generateInvoices(body) {
   // return `./tmp/invoices_${name}.docx`;
 }
 
-function extractInvoiceInfo(description) {
+function extractInvoiceInfo(description, isDLH = false) {
   if (!description) {
     return {};
   }
 
-  // Ambil nomor setelah "Nomor:"
+  // 🔹 Ambil nomor setelah "Nomor:"
   const nomorMatch = description.match(/Nomor:\s*(\d+)/i);
   const nomor = nomorMatch ? nomorMatch[1] : null;
 
-  // Ambil baris yang mengandung "Month"
-  const periodeMatch = description.match(/\d+\s*Month.*\d{2}\/\d{2}\/\d{4}.*\d{2}\/\d{2}\/\d{4}/i);
-  const periode = periodeMatch ? formatPeriodeIndonesia(periodeMatch[0]) : null;
+  let product = null;
+
+  if (isDLH) {
+    const firstLine = description.split("\n")[0]?.trim();
+    product = firstLine || null;
+  }
+  else {
+    // ✅ Normal case → ambil periode dari format Month
+    const periodeMatch = description.match(
+      /\d+\s*Month.*\d{2}\/\d{2}\/\d{4}.*\d{2}\/\d{2}\/\d{4}/i,
+    );
+
+    product = periodeMatch
+      ? `Layanan Alat Sparing Periode ${formatPeriodeIndonesia(periodeMatch[0])}`
+      : null;
+  }
 
   return {
     nomor,
-    periode,
+    product,
   };
 }
 
