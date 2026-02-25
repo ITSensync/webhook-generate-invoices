@@ -62,7 +62,35 @@ async function generateInvoices(body) {
       });
     });
 
-    const filename = `invoices_${invoice.partner_id[1]}_${invoice_date}.pdf`;
+    let customer = invoice.partner_id[1];
+
+    switch (customer) {
+      case "Pak Eko (Spinning)":
+        customer = "Indorama Spinning";
+        break;
+      case "Ibu Metha (Bcp)":
+        customer = "BCP";
+        break;
+      case "Ibu Maya (Sinar Pangjaya)":
+        customer = "Sinar Pangjaya";
+        break;
+      case "Ibu Eliza (Daliatex)":
+        customer = "Daliatex";
+        break;
+      case "Ibu Hera (Indorama Polyester)":
+        customer = "Indorama Polyester";
+        break;
+      case "Ibu Mayang (gistex)":
+        customer = "Gistex";
+        break;
+      case "Pak Gumilar DLH KOta BAndung":
+        customer = "DLH Kota Bandung";
+        break;
+      default:
+        break;
+    }
+
+    const filename = `invoices_${customer}_${invoice_date}.pdf`;
     await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
   }
   catch (error) {
