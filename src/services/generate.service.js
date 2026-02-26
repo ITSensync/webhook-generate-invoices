@@ -11,37 +11,62 @@ async function generateInvoices(body) {
   try {
     const invoice = await odooService.getInvoiceWithLines(body.id);
 
-    let customer = invoice.partner_id[1];
-
-    switch (customer) {
-      case "Pak Eko (Spinning)":
-        customer = "Indorama Spinning";
-        break;
-      case "Ibu Metha (Bcp)":
-        customer = "BCP";
-        break;
-      case "Ibu Maya (Sinar Pangjaya)":
-        customer = "Sinar Pangjaya";
-        break;
-      case "Ibu Eliza (Daliatex)":
-        customer = "Daliatex";
-        break;
-      case "Ibu Hera (Indorama Polyester)":
-        customer = "Indorama Polyester";
-        break;
-      case "Ibu Mayang (gistex)":
-        customer = "Gistex";
-        break;
-      case "Pak Gumilar DLH KOta BAndung":
-        customer = "DLH Kota Bandung";
-        break;
-      default:
-        break;
-    }
-
+    const rawCustomer = invoice.partner_id?.[1] || "";
+    const customer = normalizeCustomer(rawCustomer);
     const isDlh = customer.includes("DLH");
 
-    if (isDlh) {
+    const invoiceDateFormatted = formatInvoiceDate(invoice.invoice_date);
+    const invoiceLine = invoice.product_lines?.[0];
+
+    if (!invoiceLine) {
+      throw new Error("Invoice tidak memiliki product line");
+    }
+
+    const invoiceInfo = extractInvoiceInfo(invoiceLine.name, isDlh);
+
+    const baseData = {
+      number: invoiceInfo.nomor,
+      name: invoice.name,
+      invoice_date: invoiceDateFormatted,
+      product: invoiceInfo.product,
+      quantity: invoiceLine.quantity,
+    };
+
+    const templatePath = isDlh
+      ? "./templates/template_gov.docx"
+      : "./templates/template_invoices.docx";
+
+    const renderData = isDlh
+      ? {
+          ...baseData,
+          price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("12%", invoice.tax_lines))),
+          terbilang: terbilangRupiah(
+            invoice.amount_untaxed + getTaxPrice("12%", invoice.tax_lines),
+          ),
+        }
+      : {
+          ...baseData,
+          amount_untaxed: formatRupiahNumber(invoice.amount_untaxed),
+          price_unit: formatRupiahNumber(invoiceLine.price_unit),
+          price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
+          price_total: formatRupiahNumber(invoiceLine.price_total),
+          tax_12: formatRupiahNumber(
+            getTaxPrice("12%", invoice.tax_lines),
+          ),
+          tax_pph: formatRupiahNumber(
+            getTaxPrice("PPh 23", invoice.tax_lines),
+          ),
+        };
+
+    const pdfBuffer = await generatePdfFromTemplate(templatePath, renderData);
+
+    const filename = `invoices_${sanitizeFilename(
+      customer,
+    )}_${invoiceDateFormatted}.pdf`;
+
+    await odooService.mainProcess(pdfBuffer, ["invoice tagihan"], filename);
+
+    /* if (isDlh) {
       const content = fs.readFileSync("./templates/template_gov.docx", "binary");
       const zip = new PizZip(content);
       const doc = new Docxtemplater(zip, {
@@ -136,13 +161,64 @@ async function generateInvoices(body) {
 
       const filename = `invoices_${customer}_${invoice_date}.pdf`;
       await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
-    }
+    } */
   }
   catch (error) {
     console.error(error);
   }
 
   // return `./tmp/invoices_${name}.docx`;
+}
+
+function normalizeCustomer(name) {
+  const mapping = {
+    "Pak Eko (Spinning)": "Indorama Spinning",
+    "Ibu Metha (Bcp)": "BCP",
+    "Ibu Maya (Sinar Pangjaya)": "Sinar Pangjaya",
+    "Ibu Eliza (Daliatex)": "Daliatex",
+    "Ibu Hera (Indorama Polyester)": "Indorama Polyester",
+    "Ibu Mayang (gistex)": "Gistex",
+    "Pak Gumilar DLH KOta BAndung": "DLH Kota Bandung",
+  };
+
+  return mapping[name] || name;
+}
+
+function formatInvoiceDate(date) {
+  return new Date(date).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function sanitizeFilename(text) {
+  return text.replace(/[^\w\s]/g, "").replace(/\s+/g, "_");
+}
+
+async function generatePdfFromTemplate(templatePath, data) {
+  const content = fs.readFileSync(templatePath, "binary");
+  const zip = new PizZip(content);
+
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+  });
+
+  doc.render(data);
+
+  const buffer = doc.toBuffer();
+
+  return new Promise((resolve, reject) => {
+    libre.convert(buffer, ".pdf", "writer_pdf_Export", (err, done) => {
+      if (err) {
+        reject(err);
+      }
+      else {
+        resolve(done);
+      }
+    });
+  });
 }
 
 function extractInvoiceInfo(description, isDLH = false) {
@@ -358,6 +434,51 @@ export default {
       tax_line_id: [Array],
       debit: 0,
       credit: 2234400,
+      account_id: [Array]
+    }
+  ]
+}
+
+{
+  id: 36004,
+  name: 'INV/2026/00023',
+  invoice_date: '2026-02-26',
+  invoice_date_due: '2026-02-26',
+  partner_id: [ 119, 'DLH Karawang, Ibu Desy' ],
+  amount_untaxed: 130800000,
+  amount_tax: 13734000,
+  amount_total: 144534000,
+  invoice_line_ids: [ 75278 ],
+  line_ids: [ 75278, 75279, 75280, 75281 ],
+  currency_id: [ 12, 'IDR' ],
+  state: 'posted',
+  product_lines: [
+    {
+      id: 75278,
+      name: 'Pemeliharaan dan Perbaikan Sistem Pemantauan Kualitas Udara\nnomor: 012',
+      product_id: [Array],
+      quantity: 1,
+      price_unit: 130800000,
+      tax_ids: [Array],
+      price_subtotal: 130800000,
+      price_total: 144534000
+    }
+  ],
+  tax_lines: [
+    {
+      id: 75279,
+      name: '12%',
+      tax_line_id: [Array],
+      debit: 0,
+      credit: 15696000,
+      account_id: [Array]
+    },
+    {
+      id: 75280,
+      name: 'PPh 22',
+      tax_line_id: [Array],
+      debit: 1962000,
+      credit: 0,
       account_id: [Array]
     }
   ]
