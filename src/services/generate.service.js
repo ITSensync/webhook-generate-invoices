@@ -85,7 +85,7 @@ async function generateInvoices(body) {
       customer,
     )}_${invoiceDateFormatted}.pdf`;
 
-    await odooService.mainProcess(pdfBuffer, ["invoice tagihan"], filename);
+    await odooService.mainProcess(pdfBuffer, ["Faktur penagihan"], filename);
   }
   catch (error) {
     console.error(error);
