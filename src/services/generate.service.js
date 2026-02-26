@@ -1,13 +1,24 @@
-/* eslint-disable no-throw-literal */
 /* eslint-disable style/indent */
+/* eslint-disable no-throw-literal */
+/* eslint-disable dot-notation */
+/* eslint-disable node/no-process-env */
+
 /* eslint-disable no-unused-vars */
 
 // import ExcelJS from "exceljs";
 import fs from "node:fs";
 import Docxtemplater from "docxtemplater";
+import { JWT } from "google-auth-library";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import libre from "libreoffice-convert";
 import PizZip from "pizzip";
 import odooService from "./odoo.service.js";
+
+const serviceAccountAuth = new JWT({
+  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
 
 async function generateInvoices(body) {
   try {
@@ -29,17 +40,21 @@ async function generateInvoices(body) {
 
     const invoiceInfo = extractInvoiceInfo(invoiceLine.name, isDlh);
 
+    const number = await numberDocSpreadSheet();
+
     const baseData = {
-      number: invoiceInfo.nomor,
-      name: invoiceName(),
+      number: number.lastInvoice,
+      kwitansi_number: number.lastKuitansi,
       invoice_date: invoiceDateFormatted,
       product: invoiceInfo.product,
       quantity: invoiceLine.quantity,
+      today: invoiceDateFormatted,
+      company: normalizeCompany(rawCustomer),
     };
 
     const templatePath = isDlh
-      ? "./templates/template_gov.docx"
-      : "./templates/template_invoices.docx";
+      ? "./templates/template_gov_2.docx"
+      : "./templates/template_invoices_2.docx";
 
     const renderData = isDlh
       ? {
@@ -54,6 +69,7 @@ async function generateInvoices(body) {
         amount_untaxed: formatRupiahNumber(invoice.amount_untaxed),
         price_unit: formatRupiahNumber(invoiceLine.price_unit),
         price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
+        terbilang: terbilangRupiah(invoiceLine.price_total),
         price_total: formatRupiahNumber(invoiceLine.price_total),
         tax_12: formatRupiahNumber(
           getTaxPrice("12%", invoice.tax_lines),
@@ -70,103 +86,6 @@ async function generateInvoices(body) {
     )}_${invoiceDateFormatted}.pdf`;
 
     await odooService.mainProcess(pdfBuffer, ["invoice tagihan"], filename);
-
-    /* if (isDlh) {
-      const content = fs.readFileSync("./templates/template_gov.docx", "binary");
-      const zip = new PizZip(content);
-      const doc = new Docxtemplater(zip, {
-        // modules: [imageModule],
-        paragraphLoop: true,
-        linebreaks: true,
-      });
-
-      const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-      const name = invoice.name;
-      const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
-      const quantity = invoice.product_lines[0].quantity;
-      const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
-      const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
-      const terbilang = terbilangRupiah(price_total);
-
-      doc.render({
-        number: invoiceInfo.nomor,
-        name,
-        invoice_date,
-        product: invoiceInfo.product,
-        quantity,
-        price_unit,
-        price_total,
-        terbilang,
-      });
-
-      const buf = doc.toBuffer();
-
-      const pdfBuf = await new Promise((resolve, reject) => {
-        libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
-          if (err)
-            reject(err);
-          else resolve(done);
-        });
-      });
-
-      const filename = `invoices_${customer}_${invoice_date}.pdf`;
-      await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
-    }
-    else {
-      const content = fs.readFileSync("./templates/template_invoices.docx", "binary");
-      const zip = new PizZip(content);
-      const doc = new Docxtemplater(zip, {
-        // modules: [imageModule],
-        paragraphLoop: true,
-        linebreaks: true,
-      });
-
-      const invoice_date = new Date(invoice.invoice_date).toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-      const name = invoice.name;
-      const invoiceInfo = extractInvoiceInfo(invoice.product_lines[0].name, isDlh);
-      const quantity = invoice.product_lines[0].quantity;
-      const amount_untaxed = formatRupiahNumber(invoice.amount_untaxed);
-      const price_unit = formatRupiahNumber(invoice.product_lines[0].price_unit);
-      const price_subtotal = formatRupiahNumber(invoice.product_lines[0].price_subtotal);
-      const price_total = formatRupiahNumber(invoice.product_lines[0].price_total);
-      const tax_12 = formatRupiahNumber(getTaxPrice("12%", invoice.tax_lines));
-      const tax_pph = formatRupiahNumber(getTaxPrice("PPh 23", invoice.tax_lines));
-
-      doc.render({
-        number: invoiceInfo.nomor,
-        name,
-        invoice_date,
-        product: invoiceInfo.product,
-        quantity,
-        amount_untaxed,
-        price_unit,
-        price_subtotal,
-        price_total,
-        tax_12,
-        tax_pph,
-      });
-
-      const buf = doc.toBuffer();
-
-      const pdfBuf = await new Promise((resolve, reject) => {
-        libre.convert(buf, ".pdf", "writer_pdf_Export", (err, done) => {
-          if (err)
-            reject(err);
-          else resolve(done);
-        });
-      });
-
-      const filename = `invoices_${customer}_${invoice_date}.pdf`;
-      await odooService.mainProcess(pdfBuf, ["invoice tagihan"], filename);
-    } */
   }
   catch (error) {
     console.error(error);
@@ -187,6 +106,23 @@ function normalizeCustomer(name) {
     "Ibu Hera (Indorama Polyester)": "Indorama Polyester",
     "Ibu Mayang (gistex)": "Gistex",
     "Pak Gumilar DLH KOta BAndung": "DLH Kota Bandung",
+    "DLH Karawang, Ibu Desy": "DLH Kab. Karawang",
+  };
+
+  return mapping[name] || name;
+}
+
+function normalizeCompany(name) {
+  const mapping = {
+    "Pak Khoiri (LPA)": "PT Lucky Print Abadi",
+    "Pak Eko (Spinning)": "PT. Indorama Syntethics Div. Spinning",
+    "Ibu Metha (Bcp)": "PT. Bintang Cipta Perkasa",
+    "Ibu Maya (Sinar Pangjaya)": "PT. Sinar Pangjaya Mulya",
+    "Ibu Eliza (Daliatex)": "PT. Daliatex",
+    "Ibu Hera (Indorama Polyester)": "PT. Indorama Polyester",
+    "Ibu Mayang (gistex)": "PT. Gistex",
+    "Pak Gumilar DLH KOta BAndung": "Dinas Lingkungan Hidup Kota Bandung",
+    "DLH Karawang, Ibu Desy": "Dinas Lingkungan Hidup Kab. Karawang",
   };
 
   return mapping[name] || name;
@@ -384,29 +320,39 @@ function terbilangRupiah(n) {
   );
 }
 
-function invoiceName() {
-  const now = new Date();
+async function numberDocSpreadSheet() {
+  const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  await doc.loadInfo();
 
-  const romawi = [
-    "",
-    "I",
-    "II",
-    "III",
-    "IV",
-    "V",
-    "VI",
-    "VII",
-    "VIII",
-    "IX",
-    "X",
-    "XI",
-    "XII",
-  ];
+  const sheet = doc.sheetsByTitle["Invoice"];
+  const rows = await sheet.getRows();
 
-  return `INV/STI/${romawi[month]}/${year}`;
+  // ambil kolom "Nomor Invoice"
+  const values = rows
+    .map(row => row.get("Nomor Invoice"))
+    .filter(val => val && val !== "");
+
+  const sheet2 = doc.sheetsByTitle["Kuitansi"];
+  const rows2 = await sheet2.getRows();
+
+  // ambil kolom "Nomor Invoice"
+  const values2 = rows2
+    .map(row => row.get("Nomor Kuitansi"))
+    .filter(val => val && val !== "");
+
+  const lastInvoice = values.length
+    ? values[values.length - 1]
+    : null;
+
+  const lastKuitansi = values2.length
+    ? values2[values2.length - 1]
+    : null;
+
+  return {
+    lastInvoice,
+    lastKuitansi,
+  };
 }
 
 async function previewFile(filename) {
