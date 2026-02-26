@@ -1,3 +1,5 @@
+/* eslint-disable no-throw-literal */
+/* eslint-disable style/indent */
 /* eslint-disable no-unused-vars */
 
 // import ExcelJS from "exceljs";
@@ -10,6 +12,9 @@ import odooService from "./odoo.service.js";
 async function generateInvoices(body) {
   try {
     const invoice = await odooService.getInvoiceWithLines(body.id);
+    if (!invoice) {
+      throw (`Invoice with id ${body.id} not found`);
+    }
 
     const rawCustomer = invoice.partner_id?.[1] || "";
     const customer = normalizeCustomer(rawCustomer);
@@ -26,7 +31,7 @@ async function generateInvoices(body) {
 
     const baseData = {
       number: invoiceInfo.nomor,
-      name: invoice.name,
+      name: invoiceName(),
       invoice_date: invoiceDateFormatted,
       product: invoiceInfo.product,
       quantity: invoiceLine.quantity,
@@ -38,25 +43,25 @@ async function generateInvoices(body) {
 
     const renderData = isDlh
       ? {
-          ...baseData,
-          price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("12%", invoice.tax_lines))),
-          terbilang: terbilangRupiah(
-            invoice.amount_untaxed + getTaxPrice("12%", invoice.tax_lines),
-          ),
-        }
+        ...baseData,
+        price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("12%", invoice.tax_lines))),
+        terbilang: terbilangRupiah(
+          invoice.amount_untaxed + getTaxPrice("12%", invoice.tax_lines),
+        ),
+      }
       : {
-          ...baseData,
-          amount_untaxed: formatRupiahNumber(invoice.amount_untaxed),
-          price_unit: formatRupiahNumber(invoiceLine.price_unit),
-          price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
-          price_total: formatRupiahNumber(invoiceLine.price_total),
-          tax_12: formatRupiahNumber(
-            getTaxPrice("12%", invoice.tax_lines),
-          ),
-          tax_pph: formatRupiahNumber(
-            getTaxPrice("PPh 23", invoice.tax_lines),
-          ),
-        };
+        ...baseData,
+        amount_untaxed: formatRupiahNumber(invoice.amount_untaxed),
+        price_unit: formatRupiahNumber(invoiceLine.price_unit),
+        price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
+        price_total: formatRupiahNumber(invoiceLine.price_total),
+        tax_12: formatRupiahNumber(
+          getTaxPrice("12%", invoice.tax_lines),
+        ),
+        tax_pph: formatRupiahNumber(
+          getTaxPrice("PPh 23", invoice.tax_lines),
+        ),
+      };
 
     const pdfBuffer = await generatePdfFromTemplate(templatePath, renderData);
 
@@ -165,6 +170,9 @@ async function generateInvoices(body) {
   }
   catch (error) {
     console.error(error);
+    return {
+      error,
+    };
   }
 
   // return `./tmp/invoices_${name}.docx`;
@@ -374,6 +382,31 @@ function terbilangRupiah(n) {
       .replace(/\s+/g, " ")
       .trim()} rupiah`
   );
+}
+
+function invoiceName() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  const romawi = [
+    "",
+    "I",
+    "II",
+    "III",
+    "IV",
+    "V",
+    "VI",
+    "VII",
+    "VIII",
+    "IX",
+    "X",
+    "XI",
+    "XII",
+  ];
+
+  return `INV/STI/${romawi[month]}/${year}`;
 }
 
 async function previewFile(filename) {
