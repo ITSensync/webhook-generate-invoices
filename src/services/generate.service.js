@@ -59,9 +59,9 @@ async function generateInvoices(body) {
     const renderData = isDlh
       ? {
         ...baseData,
-        price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("12%", invoice.tax_lines))),
+        price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("11%", invoice.tax_lines))),
         terbilang: terbilangRupiah(
-          invoice.amount_untaxed + getTaxPrice("12%", invoice.tax_lines),
+          invoice.amount_untaxed + getTaxPrice("11%", invoice.tax_lines),
         ),
       }
       : {
@@ -72,7 +72,7 @@ async function generateInvoices(body) {
         terbilang: terbilangRupiah(invoiceLine.price_total),
         price_total: formatRupiahNumber(invoiceLine.price_total),
         tax_12: formatRupiahNumber(
-          getTaxPrice("12%", invoice.tax_lines),
+          getTaxPrice("11%", invoice.tax_lines),
         ),
         tax_pph: formatRupiahNumber(
           getTaxPrice("PPh 23", invoice.tax_lines),
@@ -361,7 +361,7 @@ async function previewFile(filename) {
 
 function getTaxPrice(name, taxLines) {
   const resultTax = taxLines.find(tax => tax.name === name);
-  return name === "12%" ? resultTax.credit : resultTax.debit;
+  return name === "11%" ? resultTax.credit : resultTax.debit;
 }
 
 export default {
