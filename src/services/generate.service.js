@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable style/indent */
 /* eslint-disable no-throw-literal */
 /* eslint-disable dot-notation */
@@ -22,6 +23,7 @@ const serviceAccountAuth = new JWT({
 
 async function generateInvoices(body) {
   try {
+    console.log(body);
     const invoice = await odooService.getInvoiceWithLines(body.id);
     if (!invoice) {
       throw (`Invoice with id ${body.id} not found`);
@@ -361,7 +363,9 @@ async function previewFile(filename) {
 
 function getTaxPrice(name, taxLines) {
   const resultTax = taxLines.find(tax => tax.name === name);
-  return name === "11%" ? resultTax.credit : resultTax.debit;
+  return name === "11%"
+    ? (resultTax?.credit ?? 0)
+    : (resultTax?.debit ?? 0);
 }
 
 export default {
