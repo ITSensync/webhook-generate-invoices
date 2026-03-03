@@ -58,6 +58,7 @@ async function generateInvoices(body) {
       ? "./templates/template_gov_2.docx"
       : "./templates/template_invoices_2.docx";
 
+    const needMaterai = ["Sinar Pangjaya", "Innojaya", "Daliatex", "Indotaisei", "Gistex"];
     const renderData = isDlh
       ? {
         ...baseData,
@@ -73,6 +74,7 @@ async function generateInvoices(body) {
         price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
         terbilang: terbilangRupiah(invoiceLine.price_total),
         price_total: formatRupiahNumber(invoiceLine.price_total),
+        e_materai: needMaterai.some(item => customer.includes(item)) ? "E-Materai" : "",
         no_rek: customer.includes("Papyrus") || customer.includes("Besland") ? "130-00-3366-5525" : "130-00-2282285-5",
         tax_12: formatRupiahNumber(
           getTaxPrice("11%", invoice.tax_lines),
