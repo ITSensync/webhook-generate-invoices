@@ -66,16 +66,16 @@ async function generateInvoices(body) {
       ? {
         ...baseData,
         price_total: formatRupiahNumber(Number(invoice.amount_untaxed) + Number(getTaxPrice("11%", invoice.tax_lines))),
-        terbilang: terbilangRupiah(
+        terbilang: capitalizeFirstLetter(terbilangRupiah(
           invoice.amount_untaxed + getTaxPrice("11%", invoice.tax_lines),
-        ),
+        )),
       }
       : {
         ...baseData,
         amount_untaxed: formatRupiahNumber(invoice.amount_untaxed),
         price_unit: formatRupiahNumber(invoiceLine.price_unit),
         price_subtotal: formatRupiahNumber(invoiceLine.price_subtotal),
-        terbilang: terbilangRupiah(invoiceLine.price_total),
+        terbilang: capitalizeFirstLetter(terbilangRupiah(invoiceLine.price_total)),
         price_total: formatRupiahNumber(invoiceLine.price_total),
         e_materai: needMaterai.some(item => customer.includes(item)) ? "E-Materai" : "",
         no_rek: customer.includes("Papyrus") || customer.includes("Besland") ? "130-00-3366-5525" : "130-00-2282285-5",
