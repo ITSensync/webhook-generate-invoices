@@ -29,6 +29,8 @@ async function generateInvoices(body) {
       throw (`Invoice with id ${body.id} not found`);
     }
 
+    console.log(invoice);
+
     const rawCustomer = invoice.partner_id?.[1] || "";
     const customer = normalizeCustomer(rawCustomer);
     const isDlh = customer.includes("DLH");
@@ -41,6 +43,7 @@ async function generateInvoices(body) {
     }
 
     const invoiceInfo = extractInvoiceInfo(invoiceLine.name, isDlh);
+    console.log(invoiceInfo);
 
     const number = await numberDocSpreadSheet();
 
@@ -186,20 +189,52 @@ function extractInvoiceInfo(description, isDLH = false) {
     product = firstLine || null;
   }
   else {
-    // ✅ Normal case → ambil periode dari format Month
-    const periodeMatch = description.match(
-      /\d+\s*Month.*\d{2}\/\d{2}\/\d{4}.*\d{2}\/\d{2}\/\d{4}/i,
-    );
+    const firstLine = description.split("\n")[0]?.trim().toLowerCase();
+    if (firstLine.includes("sparing")) {
+      // ✅ Normal case → ambil periode dari format Month
+      const periodeMatch = description.match(
+        /\d+\s*Month.*\d{2}\/\d{2}\/\d{4}.*\d{2}\/\d{2}\/\d{4}/i,
+      );
 
-    product = periodeMatch
-      ? `Layanan Alat Sparing Periode ${formatPeriodeIndonesia(periodeMatch[0])}`
-      : null;
+      const secondLine = description.split("\n")[1]?.trim().toLowerCase();
+
+      if (secondLine.includes("dp")) {
+        product = `${secondLine} Layanan Service Sparing`;
+      }
+      else {
+        product = periodeMatch
+          ? `Layanan Alat Sparing Periode ${formatPeriodeIndonesia(periodeMatch[0])}`
+          : null;
+      }
+    }
+    else if (firstLine.includes("pm2,5")) {
+      const periodeMatch = description.match(
+        /\d+\s*Month.*\d{2}\/\d{2}\/\d{4}.*\d{2}\/\d{2}\/\d{4}/i,
+      );
+
+      const secondLine = description.split("\n")[1]?.trim().toLowerCase();
+
+      if (secondLine.includes("dp")) {
+        product = `${secondLine} Service Peralatan Pemantauan Kualitas Udara Ambien PM2.5`;
+      }
+      else {
+        product = `Layanan Service Peralatan Pemantauan Kualitas Udara Ambien PM2.5 Periode ${formatPeriodeIndonesia(periodeMatch[0])}`;
+      }
+    }
   }
 
   return {
     nomor,
-    product,
+    product: capitalizeFirstLetter(product),
   };
+}
+
+function capitalizeFirstLetter(str) {
+  if (!str) {
+    return "";
+  }
+  str = str.trim();
+  return str[0].toUpperCase() + str.slice(1);
 }
 
 function formatPeriodeIndonesia(periodeString) {
