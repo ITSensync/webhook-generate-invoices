@@ -31,6 +31,10 @@ async function generateInvoices(body) {
 
     console.log(invoice);
 
+    if (!invoice.name.includes("INV")) {
+      throw ("Operation not from Accountiong/Invoice Posted");
+    }
+
     const rawCustomer = invoice.partner_id?.[1] || "";
     const customer = normalizeCustomer(rawCustomer);
     const isDlh = customer.includes("DLH");
