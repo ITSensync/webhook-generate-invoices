@@ -205,7 +205,7 @@ function extractInvoiceInfo(description, isDLH = false) {
       if (secondLine.includes("dp")) {
         product = `${secondLine} Layanan Service Sparing`;
       }
-      else if (secondLine.includes("Semester")) {
+      else if (secondLine.includes("semester")) {
         product = `Sewa Sistem Pemantauan Kualitas Air Limbah Secara Terus Menerus dan Dalam Jaringan (Sparing) ${formatPeriodeIndonesia(periodeMatch[0])}`;
       }
       else {
