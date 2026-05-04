@@ -63,7 +63,7 @@ async function generateInvoices(body) {
 
     const templatePath = isDlh
       ? "./templates/template_gov_2.docx"
-      : "./templates/template_invoices_2.docx";
+      : baseData.product.includes("Sewa") ? "./templates/template_invoices_semester.docx" : "./templates/template_invoices_2.docx";
 
     const needMaterai = ["Sinar Pangjaya", "Innojaya", "Daliatex", "Indotaisei", "Gistex"];
     const renderData = isDlh
@@ -204,6 +204,9 @@ function extractInvoiceInfo(description, isDLH = false) {
 
       if (secondLine.includes("dp")) {
         product = `${secondLine} Layanan Service Sparing`;
+      }
+      else if (secondLine.includes("Semester")) {
+        product = `Sewa Sistem Pemantauan Kualitas Air Limbah Secara Terus Menerus dan Dalam Jaringan (Sparing) ${formatPeriodeIndonesia(periodeMatch[0])}`;
       }
       else {
         product = periodeMatch
