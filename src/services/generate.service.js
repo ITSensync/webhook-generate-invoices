@@ -9,6 +9,7 @@
 // import ExcelJS from "exceljs";
 import fs from "node:fs";
 import Docxtemplater from "docxtemplater";
+import ImageModule from "docxtemplater-image-module-free";
 import { JWT } from "google-auth-library";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import libre from "libreoffice-convert";
@@ -66,6 +67,8 @@ async function generateInvoices(body) {
       : baseData.product.includes("Sewa") ? "./templates/template_invoices_semester.docx" : "./templates/template_invoices_2.docx";
 
     const needMaterai = ["Sinar Pangjaya", "Innojaya", "Daliatex", "Indotaisei", "Gistex"];
+    const TTD_PATH = needMaterai.some(item => customer.includes(item)) ? "./templates/ttd_wahyu.png" : null;
+
     const renderData = isDlh
       ? {
         ...baseData,
@@ -82,6 +85,7 @@ async function generateInvoices(body) {
         terbilang: capitalizeFirstLetter(terbilangRupiah(invoiceLine.price_total)),
         price_total: formatRupiahNumber(invoiceLine.price_total),
         e_materai: needMaterai.some(item => customer.includes(item)) ? "E-Materai" : "",
+        ttd: TTD_PATH,
         no_rek: customer.includes("Papyrus") || customer.includes("Besland") ? "130-00-3366-5525" : "130-00-2282285-5",
         tax_12: formatRupiahNumber(
           getTaxPrice("11%", invoice.tax_lines),
@@ -91,7 +95,7 @@ async function generateInvoices(body) {
         ),
       };
 
-    const pdfBuffer = await generatePdfFromTemplate(templatePath, renderData);
+    const pdfBuffer = await generatePdfFromTemplate(templatePath, renderData, TTD_PATH);
 
     const filename = `invoices_${sanitizeFilename(
       customer,
@@ -152,11 +156,49 @@ function sanitizeFilename(text) {
   return text.replace(/[^\w\s]/g, "").replace(/\s+/g, "_");
 }
 
-async function generatePdfFromTemplate(templatePath, data) {
+async function generatePdfFromTemplate(templatePath, data, TTD_PATH) {
   const content = fs.readFileSync(templatePath, "binary");
   const zip = new PizZip(content);
 
+  const imageModule = new ImageModule({
+    getImage(tagValue) {
+      // ✅ 1. static paraf
+      if (tagValue === TTD_PATH) {
+        return fs.readFileSync(TTD_PATH);
+      }
+
+      // ✅ 2. base64 image (ttd)
+      /* if (typeof tagValue === "string" && tagValue.includes("base64,")) {
+        const base64 = tagValue.split("base64,")[1];
+        return Buffer.from(base64, "base64");
+      }
+
+      // ✅ 3. pure base64 tanpa prefix
+      if (typeof tagValue === "string" && tagValue.length > 200) {
+        return Buffer.from(tagValue, "base64");
+      } */
+
+      return null;
+    },
+
+    getSize(img, tagValue, tagName) {
+      if (tagName === "status") {
+        return [40, 40]; // paraf kecil
+      }
+
+      if (
+        tagName === "ttd_teknisi"
+        || tagName === "ttd_pengawas_lapangan"
+      ) {
+        return [175, 100]; // tanda tangan besar
+      }
+
+      return [125, 90]; // default fallback
+    },
+  });
+
   const doc = new Docxtemplater(zip, {
+    modules: [imageModule],
     paragraphLoop: true,
     linebreaks: true,
   });
