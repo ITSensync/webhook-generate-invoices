@@ -66,7 +66,7 @@ async function generateInvoices(body) {
       ? "./templates/template_gov_2.docx"
       : baseData.product.includes("Sewa") ? "./templates/template_invoices_semester.docx" : "./templates/template_invoices_2.docx";
 
-    const needMaterai = ["Sinar Pangjaya", "Innojaya", "Daliatex", "Indotaisei", "Gistex"];
+    const needMaterai = ["Sinar Pangjaya", "Innojaya", "Daliatex", "Indotaisei", "Gistex", "Ayoetex"];
     const TTD_PATH = needMaterai.some(item => customer.includes(item)) ? "./templates/ttd_wahyu.png" : null;
 
     const renderData = isDlh
