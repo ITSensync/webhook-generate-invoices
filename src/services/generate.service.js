@@ -86,7 +86,7 @@ async function generateInvoices(body) {
         price_total: formatRupiahNumber(invoiceLine.price_total),
         e_materai: needMaterai.some(item => customer.includes(item)) ? "E-Materai" : "",
         ttd: TTD_PATH,
-        no_rek: customer.includes("Papyrus") || customer.includes("Besland") ? "130-00-3366-5525" : "130-00-2282285-5",
+        no_rek: customer.includes("Papyrus") || customer.includes("BESLAND") ? "130-00-3366-5525" : "130-00-2282285-5",
         tax_12: formatRupiahNumber(
           getTaxPrice("11%", invoice.tax_lines),
         ),
